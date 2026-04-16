@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION_BIN="260409"
+VERSION_BIN="260416"
 
 SN="${0##*/}"
 ID="[$SN]"
@@ -66,22 +66,22 @@ while [ $# -gt 0 ]; do
       ;;
     -pc)
       PM_CONFIG=1
-      [[ ${2:0:1} != "-" ]] && V="$2" && shift
+      [[ -n "$2" && ${2:0:1} != "-" ]] && V="$2" && shift
       shift
       ;;
     -pl)
       PM_LIST=1
-      [[ ${2:0:1} != "-" ]] && V="$2" && shift
+      [[ -n "$2" && ${2:0:1} != "-" ]] && V="$2" && shift
       shift
       ;;
     -pi)
       PM_INSTALL=1
-      [[ ${2:0:1} != "-" ]] && V="$2" && shift
+      [[ -n "$2" && ${2:0:1} != "-" ]] && V="$2" && shift
       shift
       ;;
     -il)
       IMAGE_LIST=1
-      [[ ${2:0:1} != "-" ]] && V="$2" && shift
+      [[ -n "$2" && ${2:0:1} != "-" ]] && V="$2" && shift
       shift
       ;;
     -l)
