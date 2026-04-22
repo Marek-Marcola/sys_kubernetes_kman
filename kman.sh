@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION_BIN="260418"
+VERSION_BIN="260422"
 
 SN="${0##*/}"
 ID="[$SN]"
@@ -21,6 +21,7 @@ PM_CONFIG=0
 PM_LIST=0
 PM_INSTALL=0
 IMAGE_LIST=0
+IMAGE_PULL=0
 ENV_LIST=0
 ENV_SHOW=0
 ENV_SHOW_RE=""
@@ -88,6 +89,11 @@ while [ $# -gt 0 ]; do
       ;;
     -il)
       IMAGE_LIST=1
+      [[ -n "$2" && ${2:0:1} != "-" ]] && V="$2" && shift
+      shift
+      ;;
+    -ip)
+      IMAGE_PULL=1
       [[ -n "$2" && ${2:0:1} != "-" ]] && V="$2" && shift
       shift
       ;;
@@ -159,6 +165,7 @@ if [ $HELP -eq 1 ]; then
   echo "$SN -pi [ver]                 # package manager install"
   echo ""
   echo "$SN -il [ver]                 # image list"
+  echo "$SN -ip [ver]                 # image pull"
   echo ""
   echo "$SN -l                        # env list"
   echo "$SN -s [re]                   # env show"
@@ -198,6 +205,10 @@ for f in /usr/local/etc/kman.env $EDIR/$A; do
     . $f
   fi
 done
+
+if [ "$V" = "" ]; then
+  V=$(kubeadm version -o yaml | grep gitVersion | awk '{print $2}' | sed 's/^v//')
+fi
 
 #
 # stage: VERSION
@@ -465,15 +476,24 @@ if [ $IMAGE_LIST -eq 1 ]; then
   (( $s != 0 )) && echo; ((++s))
   echo "$ID: stage: IMAGE-LIST"
 
-  if [ -n "$V" ]; then
+  set -ex
+  kubeadm $DEBUG_OPTS config images list ${V:+--kubernetes-version=$V}
+  { set +ex; } 2>/dev/null
+fi
+
+#
+# stage: IMAGE-PULL
+#
+if [ $IMAGE_PULL -eq 1 ]; then
+  (( $s != 0 )) && echo; ((++s))
+  echo "$ID: stage: IMAGE-PULL"
+
+  kubeadm $DEBUG_OPTS config images list ${V:+--kubernetes-version=$V} | \
+  while read i; do
     set -ex
-    kubeadm $DEBUG_OPTS config images list --kubernetes-version=$V
+    echo $i
     { set +ex; } 2>/dev/null
-  else
-    set -ex
-    kubeadm $DEBUG_OPTS config images list
-    { set +ex; } 2>/dev/null
-  fi
+  done
 fi
 
 #
