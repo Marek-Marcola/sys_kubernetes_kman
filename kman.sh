@@ -354,17 +354,17 @@ if [ $PM_CONFIG -eq 1 ]; then
   fi
 
   VB=${V%.*}
-  FB="/etc/apt/sources.list.d/debian-k8s-$VB.list"
+  RB="/etc/apt/sources.list.d/debian-k8s-$VB.list"
 
-  if [ ! -f "$FB" ]; then
+  if [ ! -f "$RB" ]; then
     set -ex
-    echo "deb [trusted=yes] http://apt/sw/repos/k8s-deb/mirror/pkgs.k8s.io/core:/stable:/v$VB/deb /" > $FB
+    echo "deb [trusted=yes] http://apt/sw/repos/k8s-deb/mirror/pkgs.k8s.io/core:/stable:/v$VB/deb /" > $RB
     { set +ex; } 2>/dev/null
     echo
   fi
 
   set -ex
-  cat $FB
+  cat $RB
   { set +ex; } 2>/dev/null
 fi
 
@@ -381,13 +381,13 @@ if [ $PM_LIST -eq 1 ]; then
   fi
 
   VB=${V%.*}
-  FB="/etc/apt/sources.list.d/debian-k8s-$VB.list"
+  RB="/etc/apt/sources.list.d/debian-k8s-$VB.list"
 
-  if [ ! -f "$FB" ]; then
-    echo package manager config not found: $FB
+  if [ ! -f "$RB" ]; then
+    echo package manager config not found: $RB
   else
     set -ex
-    cat $FB
+    cat $RB
     { set +ex; } 2>/dev/null
     echo
 
@@ -430,15 +430,15 @@ if [ $PM_INSTALL -eq 1 ]; then
   fi
 
   VB=${V%.*}
-  FB="/etc/apt/sources.list.d/debian-k8s-$VB.list"
+  RB="/etc/apt/sources.list.d/debian-k8s-$VB.list"
 
-  if [ ! -f "$FB" ]; then
-    echo package manager config not found: $FB
+  if [ ! -f "$RB" ]; then
+    echo package manager config not found: $RB
     exit 1
   fi
 
   set -ex
-  cat $FB
+  cat $RB
   { set +ex; } 2>/dev/null
   echo
 
