@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION_BIN="260423"
+VERSION_BIN="260424"
 
 SN="${0##*/}"
 ID="[$SN]"
@@ -8,11 +8,11 @@ ID="[$SN]"
 INSTALL_RSYNC=0
 INSTALL_ANPB=0
 INSTALL_ANPB_HP="kman"
+INSTALL_SKOPEO=0
 VERSION=0
 BACKUP=0
 BACKUP_LIST=0
-DEBUG=0
-DEBUG_OPTS=""
+DEBUG=""
 LINK=0
 EVAL=0
 VERSION_KUBEADM=0
@@ -59,9 +59,12 @@ while [ $# -gt 0 ]; do
       [[ -n "$2" && ${2:0:1} != "-" ]] && INSTALL_ANPB_HP="$2" && shift
       shift
       ;;
+    -is)
+      INSTALL_SKOPEO=1
+      shift
+      ;;
     -g)
       DEBUG=1
-      DEBUG_OPTS="--v=5"
       shift
       ;;
     -V)
@@ -151,6 +154,7 @@ if [ $HELP -eq 1 ]; then
   echo "$SN -version                  # version"
   echo "$SN -install                  # install with rsync"
   echo "$SN -anpb [host_pattern] [-x] # install with ansible"
+  echo "$SN -is [-x]                  # install skopeo"
   echo ""
   echo "$SN -B                        # backup"
   echo "$SN -Bl                       # backup list"
@@ -162,7 +166,7 @@ if [ $HELP -eq 1 ]; then
   echo ""
   echo "$SN -pc [ver]                 # package manager config"
   echo "$SN -pl [ver]                 # package manager list"
-  echo "$SN -pi [ver]                 # package manager install"
+  echo "$SN -pi [ver] [-x]            # package manager install"
   echo ""
   echo "$SN -il [ver]                 # image list"
   echo "$SN -ip [ver]                 # image pull"
@@ -192,7 +196,7 @@ if [ $HELP -eq 1 ]; then
   echo "  --- install: kubeadm,kubectl"
   echo "  ap-apn-api -pc      # pm config"
   echo "  ap-apn-api -pl      # pm list"
-  echo "  ap-apn-api -pi      # pm install"
+  echo "  ap-apn-api -pi -x   # pm install"
   exit 0
 fi
 
@@ -323,7 +327,7 @@ if [ $VERSION_KUBEADM -eq 1 ]; then
   echo "$ID: stage: VERSION-KUBEADM"
 
   set -ex
-  kubeadm $DEBUG_OPTS version -o yaml
+  kubeadm ${DEBUG:+--v=5} version -o yaml
   { set +ex; } 2>/dev/null
 fi
 
@@ -422,7 +426,7 @@ fi
 #
 if [ $PM_INSTALL -eq 1 ]; then
   (( $s != 0 )) && echo; ((++s))
-  echo "$ID: stage: PM-INSTALL"
+  echo "$ID: stage: PM-INSTALL (EVAL=$EVAL)"
 
   if [ "$V" = ""  ]; then
     echo "$ID: error: require ver"
@@ -452,10 +456,17 @@ if [ $PM_INSTALL -eq 1 ]; then
   { set +ex; } 2>/dev/null
   echo
 
-  set -ex
-  export DEBIAN_FRONTEND=noninteractive
-  apt -y --allow-change-held-packages install kubeadm=$V-1.1 kubectl=$V-1.1
-  { set +ex; } 2>/dev/null
+  if [ $EVAL -eq 1 ]; then
+    set -ex
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get -y --allow-change-held-packages install kubeadm=$V-1.1 kubectl=$V-1.1
+    { set +ex; } 2>/dev/null
+  else
+    set -ex
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get -y --allow-change-held-packages --dry-run install kubeadm=$V-1.1 kubectl=$V-1.1
+    { set +ex; } 2>/dev/null
+  fi
   echo
 
   set -ex
@@ -463,9 +474,51 @@ if [ $PM_INSTALL -eq 1 ]; then
   { set +ex; } 2>/dev/null
   echo
 
+  if [ $EVAL -eq 1 ]; then
+    set -ex
+    apt-mark showhold
+    apt-mark hold kubeadm kubectl
+    { set +ex; } 2>/dev/null
+    echo
+  fi
+
   set -ex
-  apt-mark hold kubeadm kubectl
   apt-mark showhold
+  { set +ex; } 2>/dev/null
+fi
+
+#
+# stage: INSTALL-SKOPEO
+#
+if [ $INSTALL_SKOPEO -eq 1 ]; then
+  (( $s != 0 )) && echo; ((++s))
+  echo "$ID: stage: INSTALL-SKOPEO (EVAL=$EVAL)"
+
+  set -ex
+  apt-get -qq update
+  { set +ex; } 2>/dev/null
+  echo
+
+  set -ex
+  apt-cache madison skopeo
+  { set +ex; } 2>/dev/null
+  echo
+
+  if [ $EVAL -eq 1 ]; then
+    set -ex
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get -y install skopeo
+    { set +ex; } 2>/dev/null
+  else
+    set -ex
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get -y --dry-run install skopeo
+    { set +ex; } 2>/dev/null
+  fi
+  echo
+
+  set -ex
+  apt list --installed skopeo
   { set +ex; } 2>/dev/null
 fi
 
@@ -477,7 +530,7 @@ if [ $IMAGE_LIST -eq 1 ]; then
   echo "$ID: stage: IMAGE-LIST"
 
   set -ex
-  kubeadm $DEBUG_OPTS config images list ${V:+--kubernetes-version=$V}
+  kubeadm ${DEBUG:+--v=5} config images list ${V:+--kubernetes-version=$V}
   { set +ex; } 2>/dev/null
 fi
 
@@ -486,18 +539,35 @@ fi
 #
 if [ $IMAGE_PULL -eq 1 ]; then
   (( $s != 0 )) && echo; ((++s))
-  echo "$ID: stage: IMAGE-PULL"
+  echo "$ID: stage: IMAGE-PULL (EVAL=$EVAL)"
 
   if [ ! $(type -t skopeo) ]; then
     echo "$ID: command not found: skopeo"
     exit 1
   fi
 
-  kubeadm $DEBUG_OPTS config images list ${V:+--kubernetes-version=$V} | \
+  kubeadm ${DEBUG:+--v=5} config images list ${V:+--kubernetes-version=$V} | \
   while read i; do
-    set -ex
-    echo $i
-    { set +ex; } 2>/dev/null
+    IH=$(echo $i|awk -F/ '{print $1}')
+    IR=$(echo $i|awk -F/ '{print $2}' | awk -F: '{print $1}')
+    IV=$(echo $i|awk -F/ '{print $2}' | awk -F: '{print $2}')
+
+    if [ ! -f $IR-$IV.tar ]; then
+      if [ $EVAL -eq 1 ]; then
+        set -ex
+        skopeo ${DEBUG:+--debug} copy \
+          --src-tls-verify=0 \
+          docker://$i docker-archive:$IR-$IV.tar
+        { set +ex; } 2>/dev/null
+      else
+        echo \
+        skopeo ${DEBUG:+--debug} copy \
+          --src-tls-verify=0 \
+          docker://$i docker-archive:$IR-$IV.tar
+      fi
+    else
+      echo file already exists: $IR-$IV.tar
+    fi
   done
 fi
 
