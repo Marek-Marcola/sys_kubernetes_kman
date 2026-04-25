@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION_BIN="260424"
+VERSION_BIN="260425"
 
 SN="${0##*/}"
 ID="[$SN]"
@@ -21,7 +21,11 @@ PM_CONFIG=0
 PM_LIST=0
 PM_INSTALL=0
 IMAGE_LIST=0
-IMAGE_PULL=0
+IMAGE_LIST_REG=0
+IMAGE_LIST_REG_RE=""
+IMAGE_SAVE=0
+IMAGE_LOAD=0
+IMAGE_PUSH=0
 ENV_LIST=0
 ENV_SHOW=0
 ENV_SHOW_RE=""
@@ -59,7 +63,7 @@ while [ $# -gt 0 ]; do
       [[ -n "$2" && ${2:0:1} != "-" ]] && INSTALL_ANPB_HP="$2" && shift
       shift
       ;;
-    -is)
+    -si)
       INSTALL_SKOPEO=1
       shift
       ;;
@@ -95,8 +99,19 @@ while [ $# -gt 0 ]; do
       [[ -n "$2" && ${2:0:1} != "-" ]] && V="$2" && shift
       shift
       ;;
+    -ilr)
+      IMAGE_LIST_REG=1
+      [[ -n "$2" && ${2:0:1} != "-" ]] && IMAGE_LIST_REG_RE="$2" && shift
+      [[ -n "$2" && $2 = "-a" ]] && IMAGE_LIST_REG_RE=".*" && shift
+      shift
+      ;;
+    -is)
+      IMAGE_SAVE=1
+      [[ -n "$2" && ${2:0:1} != "-" ]] && V="$2" && shift
+      shift
+      ;;
     -ip)
-      IMAGE_PULL=1
+      IMAGE_PUSH=1
       [[ -n "$2" && ${2:0:1} != "-" ]] && V="$2" && shift
       shift
       ;;
@@ -154,7 +169,7 @@ if [ $HELP -eq 1 ]; then
   echo "$SN -version                  # version"
   echo "$SN -install                  # install with rsync"
   echo "$SN -anpb [host_pattern] [-x] # install with ansible"
-  echo "$SN -is [-x]                  # install skopeo"
+  echo "$SN -si [-x]                  # install skopeo"
   echo ""
   echo "$SN -B                        # backup"
   echo "$SN -Bl                       # backup list"
@@ -168,8 +183,10 @@ if [ $HELP -eq 1 ]; then
   echo "$SN -pl [ver]                 # package manager list"
   echo "$SN -pi [ver] [-x]            # package manager install"
   echo ""
-  echo "$SN -il [ver]                 # image list"
-  echo "$SN -ip [ver]                 # image pull"
+  echo "$SN -il  [ver]                # image list from kubeadm"
+  echo "$SN -ilr [re|-a]              # image list from registry"
+  echo "$SN -is  [ver]                # image save"
+  echo "$SN -ip  [ver]                # image pull"
   echo ""
   echo "$SN -l                        # env list"
   echo "$SN -s [re]                   # env show"
@@ -535,11 +552,36 @@ if [ $IMAGE_LIST -eq 1 ]; then
 fi
 
 #
-# stage: IMAGE-PULL
+# stage: IMAGE-LIST-REG
 #
-if [ $IMAGE_PULL -eq 1 ]; then
+if [ $IMAGE_LIST_REG -eq 1 ]; then
   (( $s != 0 )) && echo; ((++s))
-  echo "$ID: stage: IMAGE-PULL (EVAL=$EVAL)"
+  echo "$ID: stage: IMAGE-LIST-REG (re: $IMAGE_LIST_REG_RE)"
+
+  if [ "$REGISTRY_HOST" = ""  ]; then
+    echo "err: require reg"
+    exit 1
+  fi
+
+  for RH in $REGISTRY_HOST; do
+    if [ "$IMAGE_LIST_REG_RE" != "" ]; then
+      for R in $(curl --netrc-file $REGISTRY_AUTH -s -k -L $RH/v2/_catalog | tr -d '[]{}"' | awk -F: '{print $2}' | tr ',' ' '); do
+        if [[ $R =~ $IMAGE_LIST_REG_RE ]]; then
+          echo | xargs -L1 -t curl --netrc-file $REGISTRY_AUTH -s -k -L $RH/v2/$R/tags/list | jq
+        fi
+      done
+    else
+      echo | xargs -L1 -t curl --netrc-file $REGISTRY_AUTH -s -k -L $RH/v2/_catalog | jq
+    fi
+  done
+fi
+
+#
+# stage: IMAGE-SAVE
+#
+if [ $IMAGE_SAVE -eq 1 ]; then
+  (( $s != 0 )) && echo; ((++s))
+  echo "$ID: stage: IMAGE-SAVE (EVAL=$EVAL)"
 
   if [ ! $(type -t skopeo) ]; then
     echo "$ID: command not found: skopeo"
@@ -569,6 +611,20 @@ if [ $IMAGE_PULL -eq 1 ]; then
       echo file already exists: $IR-$IV.tar
     fi
   done
+fi
+
+#
+# stage: IMAGE-PUSH
+#
+if [ $IMAGE_PUSH -eq 1 ]; then
+  (( $s != 0 )) && echo; ((++s))
+  echo "$ID: stage: IMAGE-PUSH (EVAL=$EVAL)"
+
+  if [ ! $(type -t skopeo) ]; then
+    echo "$ID: command not found: skopeo"
+    exit 1
+  fi
+
 fi
 
 #
