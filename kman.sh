@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION_BIN="260426"
+VERSION_BIN="260427"
 
 SN="${0##*/}"
 ID="[$SN]"
@@ -19,7 +19,8 @@ VERSION_KUBEADM=0
 VERSION_STABLE=0
 PACKAGE_CONFIG=0
 PACKAGE_LIST=0
-PACKAGE_INSTALL=0
+PACKAGE_INSTALL_KCLI=0
+PACKAGE_INSTALL_SKOPEO=0
 IMAGE_LIST=0
 IMAGE_LIST_REG=0
 IMAGE_LIST_REG_RE=""
@@ -62,10 +63,6 @@ while [ $# -gt 0 ]; do
       [[ -n "$2" && ${2:0:1} != "-" ]] && INSTALL_ANPB_HP="$2" && shift
       shift
       ;;
-    -si)
-      INSTALL_SKOPEO=1
-      shift
-      ;;
     -g)
       DEBUG=1
       shift
@@ -88,9 +85,13 @@ while [ $# -gt 0 ]; do
       [[ -n "$2" && ${2:0:1} != "-" ]] && V="$2" && shift
       shift
       ;;
-    -pi)
-      PACKAGE_INSTALL=1
+    -pk)
+      PACKAGE_INSTALL_KCLI=1
       [[ -n "$2" && ${2:0:1} != "-" ]] && V="$2" && shift
+      shift
+      ;;
+    -ps)
+      PACKAGE_INSTALL_SKOPEO=1
       shift
       ;;
     -il)
@@ -168,7 +169,6 @@ if [ $HELP -eq 1 ]; then
   echo "$SN -version                  # version"
   echo "$SN -install                  # install with rsync"
   echo "$SN -anpb [host_pattern] [-x] # install with ansible"
-  echo "$SN -si [-x]                  # install skopeo"
   echo ""
   echo "$SN -B                        # backup"
   echo "$SN -Bl                       # backup list"
@@ -180,7 +180,8 @@ if [ $HELP -eq 1 ]; then
   echo ""
   echo "$SN -pc [ver]                 # package config"
   echo "$SN -pl [ver]                 # package list"
-  echo "$SN -pi [ver] [-x]            # package install kubeadm,kubectl"
+  echo "$SN -pk [ver] [-x]            # package install kubeadm,kubectl"
+  echo "$SN -ps [-x]                  # package install skopeo"
   echo ""
   echo "$SN -il  [ver]                # image list from kubeadm"
   echo "$SN -ilr [re|-a]              # image list from registry"
@@ -209,10 +210,11 @@ if [ $HELP -eq 1 ]; then
   echo ""
   echo "  ap-apn-api -E       # env edit"
   echo ""
-  echo "  --- install: kubeadm,kubectl"
-  echo "  ap-apn-api -pc      # package config"
-  echo "  ap-apn-api -pl      # package list"
-  echo "  ap-apn-api -pi -x   # package install"
+  echo "  --- install: kubeadm,kubectl,skopeo"
+  echo "  ap-apn-api -pc      # config"
+  echo "  ap-apn-api -pl      # list"
+  echo "  ap-apn-api -pk -x   # install"
+  echo "  ap-apn-api -ps -x   # install"
   exit 0
 fi
 
@@ -439,11 +441,11 @@ if [ $PACKAGE_LIST -eq 1 ]; then
 fi
 
 #
-# stage: PACKAGE-INSTALL
+# stage: PACKAGE-INSTALL-KCLI
 #
-if [ $PACKAGE_INSTALL -eq 1 ]; then
+if [ $PACKAGE_INSTALL_KCLI -eq 1 ]; then
   (( $s != 0 )) && echo; ((++s))
-  echo "$ID: stage: PACKAGE-INSTALL (EVAL=$EVAL)"
+  echo "$ID: stage: PACKAGE-INSTALL-KCLI (EVAL=$EVAL)"
 
   if [ "$V" = ""  ]; then
     echo "$ID: require: ver"
@@ -500,11 +502,11 @@ if [ $PACKAGE_INSTALL -eq 1 ]; then
 fi
 
 #
-# stage: INSTALL-SKOPEO
+# stage: PACKAGE-INSTALL-SKOPEO
 #
-if [ $INSTALL_SKOPEO -eq 1 ]; then
+if [ $PACKAGE_INSTALL_SKOPEO -eq 1 ]; then
   (( $s != 0 )) && echo; ((++s))
-  echo "$ID: stage: INSTALL-SKOPEO (EVAL=$EVAL)"
+  echo "$ID: stage: PACKAGE-INSTALL-SKOPEO (EVAL=$EVAL)"
 
   set -ex
   apt-get -qq update
@@ -622,18 +624,20 @@ if [ $IMAGE_PUSH -eq 1 ]; then
 
   [[ $EVAL -ne 1 ]] && EVAL_CMD=echo || EVAL_CMD=""
 
-  kubeadm ${DEBUG:+--v=5} config images list ${V:+--kubernetes-version=$V} | \
-  while read i; do
-    IR=$(echo $i | sed 's#^[^/]*/##' | awk -F: '{print $1}')
-    IV=$(echo $i | sed 's#^[^/]*/##' | awk -F: '{print $2}')
+  for RH in $REGISTRY_HOST; do
+    kubeadm ${DEBUG:+--v=5} config images list ${V:+--kubernetes-version=$V} | \
+    while read i; do
+      IR=$(echo $i | sed 's#^[^/]*/##' | awk -F: '{print $1}')
+      IV=$(echo $i | sed 's#^[^/]*/##' | awk -F: '{print $2}')
 
-    set -ex
-    $EVAL_CMD \
-    skopeo ${DEBUG:+--debug} copy \
-      --src-tls-verify=0 \
-      --dest-tls-verify=0 \
-      docker://$i docker://${REGISTRY_HOST#*://}/$IR:$IV
-    { set +ex; } 2>/dev/null
+      set -ex
+      $EVAL_CMD \
+      skopeo ${DEBUG:+--debug} copy \
+        --src-tls-verify=0 \
+        --dest-tls-verify=0 \
+        docker://$i docker://${RH#*://}/$IR:$IV
+      { set +ex; } 2>/dev/null
+    done
   done
 fi
 
