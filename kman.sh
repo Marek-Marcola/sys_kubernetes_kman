@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION_BIN="260425"
+VERSION_BIN="260426"
 
 SN="${0##*/}"
 ID="[$SN]"
@@ -17,14 +17,13 @@ LINK=0
 EVAL=0
 VERSION_KUBEADM=0
 VERSION_STABLE=0
-PM_CONFIG=0
-PM_LIST=0
-PM_INSTALL=0
+PACKAGE_CONFIG=0
+PACKAGE_LIST=0
+PACKAGE_INSTALL=0
 IMAGE_LIST=0
 IMAGE_LIST_REG=0
 IMAGE_LIST_REG_RE=""
 IMAGE_SAVE=0
-IMAGE_LOAD=0
 IMAGE_PUSH=0
 ENV_LIST=0
 ENV_SHOW=0
@@ -80,17 +79,17 @@ while [ $# -gt 0 ]; do
       shift
       ;;
     -pc)
-      PM_CONFIG=1
+      PACKAGE_CONFIG=1
       [[ -n "$2" && ${2:0:1} != "-" ]] && V="$2" && shift
       shift
       ;;
     -pl)
-      PM_LIST=1
+      PACKAGE_LIST=1
       [[ -n "$2" && ${2:0:1} != "-" ]] && V="$2" && shift
       shift
       ;;
     -pi)
-      PM_INSTALL=1
+      PACKAGE_INSTALL=1
       [[ -n "$2" && ${2:0:1} != "-" ]] && V="$2" && shift
       shift
       ;;
@@ -179,9 +178,9 @@ if [ $HELP -eq 1 ]; then
   echo "$SN -V                        # version kubeadm"
   echo "$SN -Vs                       # version stable"
   echo ""
-  echo "$SN -pc [ver]                 # package manager config"
-  echo "$SN -pl [ver]                 # package manager list"
-  echo "$SN -pi [ver] [-x]            # package manager install"
+  echo "$SN -pc [ver]                 # package config"
+  echo "$SN -pl [ver]                 # package list"
+  echo "$SN -pi [ver] [-x]            # package install kubeadm,kubectl"
   echo ""
   echo "$SN -il  [ver]                # image list from kubeadm"
   echo "$SN -ilr [re|-a]              # image list from registry"
@@ -211,9 +210,9 @@ if [ $HELP -eq 1 ]; then
   echo "  ap-apn-api -E       # env edit"
   echo ""
   echo "  --- install: kubeadm,kubectl"
-  echo "  ap-apn-api -pc      # pm config"
-  echo "  ap-apn-api -pl      # pm list"
-  echo "  ap-apn-api -pi -x   # pm install"
+  echo "  ap-apn-api -pc      # package config"
+  echo "  ap-apn-api -pl      # package list"
+  echo "  ap-apn-api -pi -x   # package install"
   exit 0
 fi
 
@@ -301,6 +300,7 @@ if [ $QUIET -eq 0 ]; then
   echo "wdir   = ${WDIR:-[none]}"
   echo "edir   = ${EDIR:-[none]}"
   echo "ldir   = ${LDIR:-[none]}"
+  echo "regs   = ${REGISTRY_HOST:-[none]}"
 fi
 
 #
@@ -363,14 +363,14 @@ if [ $VERSION_STABLE -eq 1 ]; then
 fi
 
 #
-# stage: PM-CONFIG
+# stage: PACKAGE-CONFIG
 #
-if [ $PM_CONFIG -eq 1 ]; then
+if [ $PACKAGE_CONFIG -eq 1 ]; then
   (( $s != 0 )) && echo; ((++s))
-  echo "$ID: stage: PM-CONFIG"
+  echo "$ID: stage: PACKAGE-CONFIG"
 
   if [ "$V" = ""  ]; then
-    echo "$ID: error: require ver"
+    echo "$ID: require: ver"
     exit 1
   fi
 
@@ -390,14 +390,14 @@ if [ $PM_CONFIG -eq 1 ]; then
 fi
 
 #
-# stage: PM-LIST
+# stage: PACKAGE-LIST
 #
-if [ $PM_LIST -eq 1 ]; then
+if [ $PACKAGE_LIST -eq 1 ]; then
   (( $s != 0 )) && echo; ((++s))
-  echo "$ID: stage: PM-LIST"
+  echo "$ID: stage: PACKAGE-LIST"
 
   if [ "$V" = ""  ]; then
-    echo "$ID: error: require ver"
+    echo "$ID: require: ver"
     exit 1
   fi
 
@@ -439,14 +439,14 @@ if [ $PM_LIST -eq 1 ]; then
 fi
 
 #
-# stage: PM-INSTALL
+# stage: PACKAGE-INSTALL
 #
-if [ $PM_INSTALL -eq 1 ]; then
+if [ $PACKAGE_INSTALL -eq 1 ]; then
   (( $s != 0 )) && echo; ((++s))
-  echo "$ID: stage: PM-INSTALL (EVAL=$EVAL)"
+  echo "$ID: stage: PACKAGE-INSTALL (EVAL=$EVAL)"
 
   if [ "$V" = ""  ]; then
-    echo "$ID: error: require ver"
+    echo "$ID: require: ver"
     exit 1
   fi
 
@@ -454,7 +454,7 @@ if [ $PM_INSTALL -eq 1 ]; then
   RB="/etc/apt/sources.list.d/debian-k8s-$VB.list"
 
   if [ ! -f "$RB" ]; then
-    echo package manager config not found: $RB
+    echo "$ID: config not found: $RB"
     exit 1
   fi
 
@@ -559,7 +559,7 @@ if [ $IMAGE_LIST_REG -eq 1 ]; then
   echo "$ID: stage: IMAGE-LIST-REG (re: $IMAGE_LIST_REG_RE)"
 
   if [ "$REGISTRY_HOST" = ""  ]; then
-    echo "err: require reg"
+    echo "$ID: require: REGISTRY_HOST"
     exit 1
   fi
 
@@ -590,9 +590,9 @@ if [ $IMAGE_SAVE -eq 1 ]; then
 
   kubeadm ${DEBUG:+--v=5} config images list ${V:+--kubernetes-version=$V} | \
   while read i; do
-    IH=$(echo $i|awk -F/ '{print $1}')
-    IR=$(echo $i|awk -F/ '{print $2}' | awk -F: '{print $1}')
-    IV=$(echo $i|awk -F/ '{print $2}' | awk -F: '{print $2}')
+    IH=$(echo $i | awk -F/ '{print $1}')
+    IR=$(echo $i | sed 's#^[^/]*/##' | awk -F: '{print $1}' | sed 's#/#__SLASH__#g')
+    IV=$(echo $i | sed 's#^[^/]*/##' | awk -F: '{print $2}')
 
     if [ ! -f $IR-$IV.tar ]; then
       if [ $EVAL -eq 1 ]; then
@@ -625,6 +625,32 @@ if [ $IMAGE_PUSH -eq 1 ]; then
     exit 1
   fi
 
+  if [ -z "$REGISTRY_HOST" ]; then
+    echo "$ID: require: REGISTRY_HOST"
+    exit 1
+  fi
+
+  kubeadm ${DEBUG:+--v=5} config images list ${V:+--kubernetes-version=$V} | \
+  while read i; do
+    IH=$(echo $i | awk -F/ '{print $1}')
+    IR=$(echo $i | sed 's#^[^/]*/##' | awk -F: '{print $1}')
+    IV=$(echo $i | sed 's#^[^/]*/##' | awk -F: '{print $2}')
+
+    if [ $EVAL -eq 1 ]; then
+      set -ex
+      skopeo ${DEBUG:+--debug} copy \
+        --src-tls-verify=0 \
+        --dest-tls-verify=0 \
+        docker://$i docker://${REGISTRY_HOST#*://}/$IR:$IV
+      { set +ex; } 2>/dev/null
+    else
+      echo \
+      skopeo ${DEBUG:+--debug} copy \
+        --src-tls-verify=0 \
+        --dest-tls-verify=0 \
+        docker://$i docker://${REGISTRY_HOST#*://}/$IR:$IV
+    fi
+  done
 fi
 
 #
