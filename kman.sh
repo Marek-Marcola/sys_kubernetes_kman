@@ -588,25 +588,20 @@ if [ $IMAGE_SAVE -eq 1 ]; then
     exit 1
   fi
 
+  [[ $EVAL -ne 1 ]] && EVAL_CMD=echo || EVAL_CMD=""
+
   kubeadm ${DEBUG:+--v=5} config images list ${V:+--kubernetes-version=$V} | \
   while read i; do
-    IH=$(echo $i | awk -F/ '{print $1}')
     IR=$(echo $i | sed 's#^[^/]*/##' | awk -F: '{print $1}' | sed 's#/#__SLASH__#g')
     IV=$(echo $i | sed 's#^[^/]*/##' | awk -F: '{print $2}')
 
     if [ ! -f $IR-$IV.tar ]; then
-      if [ $EVAL -eq 1 ]; then
-        set -ex
-        skopeo ${DEBUG:+--debug} copy \
-          --src-tls-verify=0 \
-          docker://$i docker-archive:$IR-$IV.tar
-        { set +ex; } 2>/dev/null
-      else
-        echo \
-        skopeo ${DEBUG:+--debug} copy \
-          --src-tls-verify=0 \
-          docker://$i docker-archive:$IR-$IV.tar
-      fi
+      set -ex
+      $EVAL_CMD \
+      skopeo ${DEBUG:+--debug} copy \
+        --src-tls-verify=0 \
+        docker://$i docker-archive:$IR-$IV.tar
+      { set +ex; } 2>/dev/null
     else
       echo file already exists: $IR-$IV.tar
     fi
@@ -630,26 +625,20 @@ if [ $IMAGE_PUSH -eq 1 ]; then
     exit 1
   fi
 
+  [[ $EVAL -ne 1 ]] && EVAL_CMD=echo || EVAL_CMD=""
+
   kubeadm ${DEBUG:+--v=5} config images list ${V:+--kubernetes-version=$V} | \
   while read i; do
-    IH=$(echo $i | awk -F/ '{print $1}')
     IR=$(echo $i | sed 's#^[^/]*/##' | awk -F: '{print $1}')
     IV=$(echo $i | sed 's#^[^/]*/##' | awk -F: '{print $2}')
 
-    if [ $EVAL -eq 1 ]; then
-      set -ex
-      skopeo ${DEBUG:+--debug} copy \
-        --src-tls-verify=0 \
-        --dest-tls-verify=0 \
-        docker://$i docker://${REGISTRY_HOST#*://}/$IR:$IV
-      { set +ex; } 2>/dev/null
-    else
-      echo \
-      skopeo ${DEBUG:+--debug} copy \
-        --src-tls-verify=0 \
-        --dest-tls-verify=0 \
-        docker://$i docker://${REGISTRY_HOST#*://}/$IR:$IV
-    fi
+    set -ex
+    $EVAL_CMD \
+    skopeo ${DEBUG:+--debug} copy \
+      --src-tls-verify=0 \
+      --dest-tls-verify=0 \
+      docker://$i docker://${REGISTRY_HOST#*://}/$IR:$IV
+    { set +ex; } 2>/dev/null
   done
 fi
 
