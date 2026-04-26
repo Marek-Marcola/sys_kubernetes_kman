@@ -459,11 +459,6 @@ if [ $PACKAGE_INSTALL -eq 1 ]; then
   fi
 
   set -ex
-  cat $RB
-  { set +ex; } 2>/dev/null
-  echo
-
-  set -ex
   apt-get -qq update
   { set +ex; } 2>/dev/null
   echo
