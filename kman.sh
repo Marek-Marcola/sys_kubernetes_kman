@@ -19,7 +19,9 @@ VERSION_KUBEADM=0
 VERSION_STABLE=0
 PACKAGE_CONFIG=0
 PACKAGE_LIST=0
+PACKAGE_INSTALL_KUBE=0
 PACKAGE_INSTALL_KUBEADM=0
+PACKAGE_INSTALL_KUBECTL=0
 PACKAGE_INSTALL_KUBELET=0
 PACKAGE_INSTALL_SKOPEO=0
 IMAGE_LIST=0
@@ -87,11 +89,19 @@ while [ $# -gt 0 ]; do
       shift
       ;;
     -pka)
+      PACKAGE_INSTALL_KUBE=1
       PACKAGE_INSTALL_KUBEADM=1
       [[ -n "$2" && ${2:0:1} != "-" ]] && V="$2" && shift
       shift
       ;;
+    -pkc)
+      PACKAGE_INSTALL_KUBE=1
+      PACKAGE_INSTALL_KUBECTL=1
+      [[ -n "$2" && ${2:0:1} != "-" ]] && V="$2" && shift
+      shift
+      ;;
     -pkl)
+      PACKAGE_INSTALL_KUBE=1
       PACKAGE_INSTALL_KUBELET=1
       [[ -n "$2" && ${2:0:1} != "-" ]] && V="$2" && shift
       shift
@@ -186,7 +196,8 @@ if [ $HELP -eq 1 ]; then
   echo ""
   echo "$SN -pc [ver]                 # package config"
   echo "$SN -pl [ver]                 # package list"
-  echo "$SN -pka [ver] [-x]           # package install kubeadm,kubectl"
+  echo "$SN -pka [ver] [-x]           # package install kubeadm"
+  echo "$SN -pkc [ver] [-x]           # package install kubectl"
   echo "$SN -pkl [ver] [-x]           # package install kubelet"
   echo "$SN -ps [-x]                  # package install skopeo"
   echo ""
@@ -236,7 +247,7 @@ for f in /usr/local/etc/kman.env $EDIR/$A; do
 done
 
 if [ "$V" = "" ]; then
-  V=$(kubeadm version -o yaml | grep gitVersion | awk '{print $2}' | sed 's/^v//')
+  V=$(kubeadm version -o yaml 2>/dev/null | grep gitVersion | awk '{print $2}' | sed 's/^v//')
 fi
 
 #
@@ -449,11 +460,11 @@ if [ $PACKAGE_LIST -eq 1 ]; then
 fi
 
 #
-# stage: PACKAGE-INSTALL-KUBEADM
+# stage: PACKAGE-INSTALL-KUBE
 #
-if [ $PACKAGE_INSTALL_KUBEADM -eq 1 ]; then
+if [ $PACKAGE_INSTALL_KUBE -eq 1 ]; then
   (( $s != 0 )) && echo; ((++s))
-  echo "$ID: stage: PACKAGE-INSTALL-KUBEADM (EVAL=$EVAL)"
+  echo "$ID: stage: PACKAGE-INSTALL-KUBE (EVAL=$EVAL)"
 
   if [ "$V" = ""  ]; then
     echo "$ID: require: ver"
@@ -466,78 +477,53 @@ if [ $PACKAGE_INSTALL_KUBEADM -eq 1 ]; then
   echo
 
   set -ex
-  apt-cache madison kubeadm kubectl | grep $V
+  apt-cache madison kubeadm kubectl kubelet | grep $V
   { set +ex; } 2>/dev/null
   echo
 
   [[ $EVAL -ne 1 ]] && EVAL_OPT="--dry-run" || EVAL_OPT=""
-
-  set -ex
   export DEBIAN_FRONTEND=noninteractive
-  apt-get -y --allow-change-held-packages $EVAL_OPT install kubeadm=$V-1.1 kubectl=$V-1.1
-  { set +ex; } 2>/dev/null
-  echo
+
+  if [ $PACKAGE_INSTALL_KUBEADM -eq 1 ]; then
+    set -ex
+    apt-get -y --allow-change-held-packages $EVAL_OPT install kubeadm=$V-1.1
+    { set +ex; } 2>/dev/null
+    if [ $EVAL -eq 1 ]; then
+      set -ex
+      apt-mark hold kubeadm
+      { set +ex; } 2>/dev/null
+    fi
+    echo
+  fi
+
+  if [ $PACKAGE_INSTALL_KUBECTL -eq 1 ]; then
+    set -ex
+    apt-get -y --allow-change-held-packages $EVAL_OPT install kubectl=$V-1.1
+    { set +ex; } 2>/dev/null
+    if [ $EVAL -eq 1 ]; then
+      set -ex
+      apt-mark hold kubectl
+      { set +ex; } 2>/dev/null
+    fi
+    echo
+  fi
+
+  if [ $PACKAGE_INSTALL_KUBELET -eq 1 ]; then
+    set -ex
+    apt-get -y --allow-change-held-packages $EVAL_OPT install kubelet=$V-1.1
+    { set +ex; } 2>/dev/null
+    if [ $EVAL -eq 1 ]; then
+      set -ex
+      apt-mark hold kubelet
+      { set +ex; } 2>/dev/null
+    fi
+    echo
+  fi
 
   set -ex
   apt list --installed kubeadm kubectl kubelet
   { set +ex; } 2>/dev/null
   echo
-
-  if [ $EVAL -eq 1 ]; then
-    set -ex
-    apt-mark showhold
-    apt-mark hold kubeadm kubectl
-    { set +ex; } 2>/dev/null
-    echo
-  fi
-
-  set -ex
-  apt-mark showhold
-  { set +ex; } 2>/dev/null
-fi
-
-#
-# stage: PACKAGE-INSTALL-KUBELET
-#
-if [ $PACKAGE_INSTALL_KUBELET -eq 1 ]; then
-  (( $s != 0 )) && echo; ((++s))
-  echo "$ID: stage: PACKAGE-INSTALL-KUBELET (EVAL=$EVAL)"
-
-  if [ "$V" = ""  ]; then
-    echo "$ID: require: ver"
-    exit 1
-  fi
-
-  set -ex
-  apt-get -qq update
-  { set +ex; } 2>/dev/null
-  echo
-
-  set -ex
-  apt-cache madison kubelet | grep $V
-  { set +ex; } 2>/dev/null
-  echo
-
-  [[ $EVAL -ne 1 ]] && EVAL_OPT="--dry-run" || EVAL_OPT=""
-
-  set -ex
-  export DEBIAN_FRONTEND=noninteractive
-  apt-get -y --allow-change-held-packages $EVAL_OPT install kubelet=$V-1.1
-  { set +ex; } 2>/dev/null
-  echo
-
-  set -ex
-  apt list --installed kubeadm kubectl kubelet
-  { set +ex; } 2>/dev/null
-  echo
-
-  if [ $EVAL -eq 1 ]; then
-    set -ex
-    apt-mark showhold
-    apt-mark hold kubelet
-    { set +ex; } 2>/dev/null
-    echo
-  fi
 
   set -ex
   apt-mark showhold
