@@ -23,12 +23,16 @@ PACKAGE_INSTALL_KUBE=0
 PACKAGE_INSTALL_KUBEADM=0
 PACKAGE_INSTALL_KUBECTL=0
 PACKAGE_INSTALL_KUBELET=0
+PACKAGE_INSTALL_CONTAINERD=0
 PACKAGE_INSTALL_SKOPEO=0
 IMAGE_LIST=0
 IMAGE_LIST_REG=0
 IMAGE_LIST_REG_RE=""
 IMAGE_SAVE=0
-IMAGE_PUSH=0
+IMAGE_PULL=0
+CLUSTER_IMAGE_LIST=0
+CLUSTER_IMAGE_PULL=0
+CLUSTER_UPGRADE=""
 ENV_LIST=0
 ENV_SHOW=0
 ENV_SHOW_RE=""
@@ -106,7 +110,11 @@ while [ $# -gt 0 ]; do
       [[ -n "$2" && ${2:0:1} != "-" ]] && V="$2" && shift
       shift
       ;;
-    -ps)
+    -pic)
+      PACKAGE_INSTALL_CONTAINERD=1
+      shift
+      ;;
+    -pis)
       PACKAGE_INSTALL_SKOPEO=1
       shift
       ;;
@@ -127,8 +135,28 @@ while [ $# -gt 0 ]; do
       shift
       ;;
     -ip)
-      IMAGE_PUSH=1
+      IMAGE_PULL=1
       [[ -n "$2" && ${2:0:1} != "-" ]] && V="$2" && shift
+      shift
+      ;;
+    -cil)
+      CLUSTER_IMAGE_LIST=1
+      shift
+      ;;
+    -cip)
+      CLUSTER_IMAGE_PULL=1
+      shift
+      ;;
+    -cup)
+      CLUSTER_UPGRADE=plan
+      shift
+      ;;
+    -cua)
+      CLUSTER_UPGRADE=apply
+      shift
+      ;;
+    -cun)
+      CLUSTER_UPGRADE=node
       shift
       ;;
     -l)
@@ -199,12 +227,19 @@ if [ $HELP -eq 1 ]; then
   echo "$SN -pka [ver] [-x]           # package install kubeadm"
   echo "$SN -pkc [ver] [-x]           # package install kubectl"
   echo "$SN -pkl [ver] [-x]           # package install kubelet"
-  echo "$SN -ps [-x]                  # package install skopeo"
+  echo "$SN -pic [-x]                 # package install containerd.io"
+  echo "$SN -pis [-x]                 # package install skopeo"
   echo ""
   echo "$SN -il  [ver]                # image list from kubeadm"
   echo "$SN -ilr [re|-a]              # image list from registry"
   echo "$SN -is  [ver]                # image save"
   echo "$SN -ip  [ver]                # image pull"
+  echo ""
+  echo "$SN -cip [ver]                # cluster image pull"
+  echo "$SN -cil                      # cluster image list"
+  echo "$SN -cup                      # cluster upgrade plan"
+  echo "$SN -cua                      # cluster upgrade apply"
+  echo "$SN -cun                      # cluster upgrade node"
   echo ""
   echo "$SN -l                        # env list"
   echo "$SN -s [re]                   # env show"
@@ -232,7 +267,14 @@ if [ $HELP -eq 1 ]; then
   echo "  ap-apn-api -pc      # config"
   echo "  ap-apn-api -pl      # list"
   echo "  ap-apn-api -pka -x  # install kubeadm"
-  echo "  ap-apn-api -ps  -x  # install skopeo"
+  echo "  ap-apn-api -pis -x  # install skopeo"
+  echo ""
+  echo "  --- upgrade:"
+  echo "  ap-apn-api -cip     # cluster image pull"
+  echo "  ap-apn-api -cil     # cluster image list"
+  echo "  ap-apn-api -cup     # cluster upgrade plan"
+  echo "  ap-apn-api -cua     # cluster upgrade apply (first control plane node)"
+  echo "  ap-apn-api -cun     # cluster upgrade node  (other control plane nodes)"
   exit 0
 fi
 
@@ -531,6 +573,36 @@ if [ $PACKAGE_INSTALL_KUBE -eq 1 ]; then
 fi
 
 #
+# stage: PACKAGE-INSTALL-CONTAINERD
+#
+if [ $PACKAGE_INSTALL_CONTAINERD -eq 1 ]; then
+  (( $s != 0 )) && echo; ((++s))
+  echo "$ID: stage: PACKAGE-INSTALL-CONTAINERD (EVAL=$EVAL)"
+
+  set -ex
+  apt-get -qq update
+  { set +ex; } 2>/dev/null
+  echo
+
+  set -ex
+  apt-cache madison containerd containerd.io
+  { set +ex; } 2>/dev/null
+  echo
+
+  [[ $EVAL -ne 1 ]] && EVAL_OPT="--dry-run" || EVAL_OPT=""
+
+  set -ex
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get -y $EVAL_OPT install containerd.io
+  { set +ex; } 2>/dev/null
+  echo
+
+  set -ex
+  apt list --installed containerd containerd.io
+  { set +ex; } 2>/dev/null
+fi
+
+#
 # stage: PACKAGE-INSTALL-SKOPEO
 #
 if [ $PACKAGE_INSTALL_SKOPEO -eq 1 ]; then
@@ -630,11 +702,11 @@ if [ $IMAGE_SAVE -eq 1 ]; then
 fi
 
 #
-# stage: IMAGE-PUSH
+# stage: IMAGE-PULL
 #
-if [ $IMAGE_PUSH -eq 1 ]; then
+if [ $IMAGE_PULL -eq 1 ]; then
   (( $s != 0 )) && echo; ((++s))
-  echo "$ID: stage: IMAGE-PUSH (EVAL=$EVAL)"
+  echo "$ID: stage: IMAGE-PULL (EVAL=$EVAL)"
 
   if [ ! $(type -t skopeo) ]; then
     echo "$ID: command not found: skopeo"
@@ -663,6 +735,63 @@ if [ $IMAGE_PUSH -eq 1 ]; then
       { set +ex; } 2>/dev/null
     done
   done
+fi
+
+#
+# stage: CLUSTER-IMAGE-LIST
+#
+if [ $CLUSTER_IMAGE_LIST -eq 1 ]; then
+  (( $s != 0 )) && echo; ((++s))
+  echo "$ID: stage: CLUSTER-IMAGE-LIST"
+
+  set -ex
+  CONTAINERD_NAMESPACE=k8s.io ctr image ls -q
+  { set +ex; } 2>/dev/null
+fi
+
+#
+# stage: CLUSTER-IMAGE-PULL
+#
+if [ $CLUSTER_IMAGE_PULL -eq 1 ]; then
+  (( $s != 0 )) && echo; ((++s))
+  echo "$ID: stage: CLUSTER-IMAGE-PULL"
+
+  if [ -z "$REGISTRY_HOST" ]; then
+    echo "$ID: require: REGISTRY_HOST"
+    exit 1
+  fi
+
+  RH=$(echo $REGISTRY_HOST|awk '{print $1}')
+
+  set -ex
+  kubeadm ${DEBUG:+--v=5} config images pull --image-repository=${RH#*://} --kubernetes-version=v$V
+  { set +ex; } 2>/dev/null
+fi
+
+#
+# stage: CLUSTER-UPGRADE
+#
+if [ "$CLUSTER_UPGRADE" != "" ]; then
+  (( $s != 0 )) && echo; ((++s))
+  echo "$ID: stage: CLUSTER-UPGRADE ($CLUSTER_UPGRADE)"
+
+  if [ "$CLUSTER_UPGRADE" = "plan" ]; then
+    set -ex
+    kubeadm ${DEBUG:+--v=5} upgrade plan v$V
+    { set +ex; } 2>/dev/null
+  fi
+
+  if [ "$CLUSTER_UPGRADE" = "apply" ]; then
+    set -ex
+    kubeadm ${DEBUG:+--v=5} upgrade apply v$V
+    { set +ex; } 2>/dev/null
+  fi
+
+  if [ "$CLUSTER_UPGRADE" = "node" ]; then
+    set -ex
+    kubeadm ${DEBUG:+--v=5} upgrade node v$V
+    { set +ex; } 2>/dev/null
+  fi
 fi
 
 #
