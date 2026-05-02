@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION_BIN="260502"
+VERSION_BIN="260503"
 
 SN="${0##*/}"
 ID="[$SN]"
@@ -222,8 +222,8 @@ if [ $HELP -eq 1 ]; then
   echo "$SN -V                        # version kubeadm"
   echo "$SN -Vs                       # version stable"
   echo ""
-  echo "$SN -pc [ver]                 # package config"
-  echo "$SN -pl [ver]                 # package list"
+  echo "$SN -pc  [ver]                # package config"
+  echo "$SN -pl  [ver]                # package list"
   echo "$SN -pka [ver] [-x]           # package install kubeadm"
   echo "$SN -pkc [ver] [-x]           # package install kubectl"
   echo "$SN -pkl [ver] [-x]           # package install kubelet"
