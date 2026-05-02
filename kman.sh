@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION_BIN="260501"
+VERSION_BIN="260502"
 
 SN="${0##*/}"
 ID="[$SN]"
@@ -263,27 +263,33 @@ if [ $HELP -eq 1 ]; then
   echo ""
   echo "  ap-apn-api -E                   # env edit"
   echo ""
-  echo " ---- image: pull"
+  echo " ---- image: pull to local registry"
   echo "  V=x.y.z                         # set version"
   echo "  km -pc  \$V                      # package config"
   echo "  km -pl  \$V                      # package list"
   echo "  km -pka \$V -x                   # install kubeadm"
+  echo "  km -pkc -x                      # install kubectl"
   echo "  km -pis -x                      # install skopeo"
   echo ""
   echo "  module load cr/kcr.dc.local     # load env module"
   echo "  km -il -ilr api                 # image list"
   echo "  km -ip -x                       # image pull"
   echo ""
+  echo " ---- cluster: init"
+  echo "  V=x.y.z                         # set version"
+  echo ""
   echo " ---- cluster: upgrade"
   echo "  V=x.y.z                         # set version"
-  echo "  systemctl restart kubelet       # restart kubelet"
   echo "  km -pc  \$V                      # package config"
+  echo "  km -pl  \$V                      # package list"
   echo "  km -pka \$V -x                   # upgrade kubeadm"
   echo ""
   echo "  module load cr/kcr.dc.local     # load env module"
   echo "  km -cip                         # cluster image pull"
   echo "  km -cil                         # cluster image list"
   echo ""
+  echo "  systemctl daemon-reload         # reload  systemd"
+  echo "  systemctl restart kubelet       # restart kubelet"
   echo "  km -cup                         # cluster upgrade plan"
   echo "  km -cua                         # cluster upgrade apply (first control plane node)"
   echo "  km -cun                         # cluster upgrade node  (other control plane nodes)"
@@ -483,43 +489,41 @@ if [ $PACKAGE_LIST -eq 1 ]; then
   VB=${V%.*}
   RB="/etc/apt/sources.list.d/debian-k8s-$VB.list"
 
-  set -ex
+  set -x
   tree --noreport -F -hD -C -L 1 /etc/apt/sources.list.d
-  { set +ex; } 2>/dev/null
-    echo
+  { set +x; } 2>/dev/null
+  echo
 
-  if [ ! -f "$RB" ]; then
-    echo package manager config not found: $RB
-  else
-    set -ex
+  if [ -f "$RB" ]; then
+    set -x
     cat $RB
-    { set +ex; } 2>/dev/null
+    { set +x; } 2>/dev/null
     echo
-
-    set -ex
-    apt-get -qq update
-    { set +ex; } 2>/dev/null
-    echo
-
-    set -ex
-    apt-cache madison kubeadm kubectl kubelet skopeo
-    { set +ex; } 2>/dev/null
-    echo
-
-    set -ex
-    apt-cache madison kubeadm kubectl kubelet | grep $V
-    { set +ex; } 2>/dev/null
-    echo
-
-    set -ex
-    apt list --installed kubeadm kubectl kubelet skopeo
-    { set +ex; } 2>/dev/null
-    echo
-
-    set -ex
-    apt-mark showhold
-    { set +ex; } 2>/dev/null
   fi
+
+  set -x
+  apt-get -qq update
+  { set +x; } 2>/dev/null
+  echo
+
+  set -x
+  apt-cache madison kubeadm kubectl kubelet skopeo containerd containerd.io
+  { set +x; } 2>/dev/null
+  echo
+
+  set -x
+  apt-cache madison kubeadm kubectl kubelet | grep $V
+  { set +x; } 2>/dev/null
+  echo
+
+  set -x
+  apt list --installed kubeadm kubectl kubelet skopeo containerd containerd.io
+  { set +x; } 2>/dev/null
+  echo
+
+  set -x
+  apt-mark showhold
+  { set +x; } 2>/dev/null
 fi
 
 #
