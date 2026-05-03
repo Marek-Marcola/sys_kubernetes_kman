@@ -33,6 +33,8 @@ IMAGE_PULL=0
 K8S_IMAGE_LIST=0
 K8S_IMAGE_PULL=0
 K8S_UPGRADE=""
+K8S_CERT_CHECK=0
+K8S_CERT_RENEW=0
 CNI_CALICO_IMAGE_PULL=0
 ENV_LIST=0
 ENV_SHOW=0
@@ -162,7 +164,15 @@ while [ $# -gt 0 ]; do
       ;;
     -ncip)
       CNI_CALICO_IMAGE_PULL=1
-      [[ -n "$2" && ${2:0:1} != "-" ]] && V="$2" && shift
+      [[ -n "$2" && ${2:0:1} != "-" ]] && CNIV="$2" && shift
+      shift
+      ;;
+    -CC)
+      K8S_CERT_CHECK=1
+      shift
+      ;;
+    -CR)
+      K8S_CERT_RENEW=1
       shift
       ;;
     -l)
@@ -248,6 +258,9 @@ if [ $HELP -eq 1 ]; then
   echo "$SN -kun                      # k8s upgrade node"
   echo ""
   echo "$SN -ncip [ver]               # cni calico image pull"
+  echo ""
+  echo "$SN -CC                       # certificate check"
+  echo "$SN -CR [-x]                  # certificate renew"
   echo ""
   echo "$SN -l                        # env list"
   echo "$SN -s [re]                   # env show"
@@ -848,15 +861,15 @@ if [ $CNI_CALICO_IMAGE_PULL -eq 1 ]; then
     exit 1
   fi
 
-  if [ -z "$REGISTRY_HOST" ]; then
-    echo "$ID: require: REGISTRY_HOST"
+  if [ -z "$REGISTRY_HOST" -o -z "$CNIV" ]; then
+    echo "$ID: require: REGISTRY_HOST,CNIV"
     exit 1
   fi
 
   [[ $EVAL -ne 1 ]] && EVAL_CMD="echo" || EVAL_CMD=""
 
   for RH in $REGISTRY_HOST; do
-    echo docker.io/calico/cni:v$V docker.io/calico/node:v$V docker.io/calico/kube-controllers:v$V | \
+    echo docker.io/calico/cni:v$CNIV docker.io/calico/node:v$CNIV docker.io/calico/kube-controllers:v$CNIV | \
     sed 's/ /\n/g' | \
     while read i; do
       IR=$(echo $i | sed 's#^[^/]*/##' | awk -F: '{print $1}')
@@ -875,6 +888,33 @@ if [ $CNI_CALICO_IMAGE_PULL -eq 1 ]; then
       done
     done
   done
+fi
+
+#
+# stage: K8S_CERT_CHECK
+#
+if [ $K8S_CERT_CHECK -eq 1 ]; then
+  (( $s != 0 )) && echo; ((++s))
+  echo "$ID: stage: K8S_CERT_CHECK"
+
+  set -ex
+  kubeadm ${DEBUG:+--v=5} certs check-expiration
+  { set +ex; } 2>/dev/null
+fi
+
+#
+# stage: K8S_CERT_RENEW
+#
+if [ $K8S_CERT_RENEW -eq 1 ]; then
+  (( $s != 0 )) && echo; ((++s))
+  echo "$ID: stage: K8S_CERT_RENEW (EVAL=$EVAL)"
+
+  [[ $EVAL -ne 1 ]] && EVAL_CMD="echo" || EVAL_CMD=""
+
+  set -ex
+  $EVAL_CMD \
+  kubeadm ${DEBUG:+--v=5} certs renew all
+  { set +ex; } 2>/dev/null
 fi
 
 #
