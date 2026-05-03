@@ -30,9 +30,10 @@ IMAGE_LIST_REG=0
 IMAGE_LIST_REG_RE=""
 IMAGE_SAVE=0
 IMAGE_PULL=0
-CLUSTER_IMAGE_LIST=0
-CLUSTER_IMAGE_PULL=0
-CLUSTER_UPGRADE=""
+K8S_IMAGE_LIST=0
+K8S_IMAGE_PULL=0
+K8S_UPGRADE=""
+CNI_CALICO_IMAGE_PULL=0
 ENV_LIST=0
 ENV_SHOW=0
 ENV_SHOW_RE=""
@@ -139,24 +140,29 @@ while [ $# -gt 0 ]; do
       [[ -n "$2" && ${2:0:1} != "-" ]] && V="$2" && shift
       shift
       ;;
-    -cil)
-      CLUSTER_IMAGE_LIST=1
+    -kil)
+      K8S_IMAGE_LIST=1
       shift
       ;;
-    -cip)
-      CLUSTER_IMAGE_PULL=1
+    -kip)
+      K8S_IMAGE_PULL=1
       shift
       ;;
-    -cup)
-      CLUSTER_UPGRADE=plan
+    -kup)
+      K8S_UPGRADE=plan
       shift
       ;;
-    -cua)
-      CLUSTER_UPGRADE=apply
+    -kua)
+      K8S_UPGRADE=apply
       shift
       ;;
-    -cun)
-      CLUSTER_UPGRADE=node
+    -kun)
+      K8S_UPGRADE=node
+      shift
+      ;;
+    -ncip)
+      CNI_CALICO_IMAGE_PULL=1
+      [[ -n "$2" && ${2:0:1} != "-" ]] && V="$2" && shift
       shift
       ;;
     -l)
@@ -235,11 +241,13 @@ if [ $HELP -eq 1 ]; then
   echo "$SN -is  [ver]                # image save"
   echo "$SN -ip  [ver]                # image pull"
   echo ""
-  echo "$SN -cip [ver]                # cluster image pull"
-  echo "$SN -cil                      # cluster image list"
-  echo "$SN -cup                      # cluster upgrade plan"
-  echo "$SN -cua                      # cluster upgrade apply"
-  echo "$SN -cun                      # cluster upgrade node"
+  echo "$SN -kip [ver]                # k8s image pull"
+  echo "$SN -kil                      # k8s image list"
+  echo "$SN -kup                      # k8s upgrade plan"
+  echo "$SN -kua                      # k8s upgrade apply"
+  echo "$SN -kun                      # k8s upgrade node"
+  echo ""
+  echo "$SN -ncip [ver]               # cni calico image pull"
   echo ""
   echo "$SN -l                        # env list"
   echo "$SN -s [re]                   # env show"
@@ -263,7 +271,7 @@ if [ $HELP -eq 1 ]; then
   echo ""
   echo "  ap-apn-api -E                   # env edit"
   echo ""
-  echo " ---- image: pull to local registry"
+  echo " ---- k8s: image pull to local registry"
   echo "  V=x.y.z                         # set version"
   echo "  km -pc  \$V                      # package config"
   echo "  km -pl  \$V                      # package list"
@@ -275,24 +283,24 @@ if [ $HELP -eq 1 ]; then
   echo "  km -il -ilr api                 # image list"
   echo "  km -ip -x                       # image pull"
   echo ""
-  echo " ---- cluster: init"
+  echo " ---- k8s: init"
   echo "  V=x.y.z                         # set version"
   echo ""
-  echo " ---- cluster: upgrade"
+  echo " ---- k8s: upgrade"
   echo "  V=x.y.z                         # set version"
   echo "  km -pc  \$V                      # package config"
   echo "  km -pl  \$V                      # package list"
   echo "  km -pka \$V -x                   # upgrade kubeadm"
   echo ""
   echo "  module load cr/kcr.dc.local     # load env module"
-  echo "  km -cip                         # cluster image pull"
-  echo "  km -cil                         # cluster image list"
+  echo "  km -kip                         # k8s image pull"
+  echo "  km -kil                         # k8s image list"
   echo ""
   echo "  systemctl daemon-reload         # reload  systemd"
   echo "  systemctl restart kubelet       # restart kubelet"
-  echo "  km -cup                         # cluster upgrade plan"
-  echo "  km -cua                         # cluster upgrade apply (first control plane node)"
-  echo "  km -cun                         # cluster upgrade node  (other control plane nodes)"
+  echo "  km -kup                         # k8s upgrade plan"
+  echo "  km -kua                         # k8s upgrade apply (first control plane node)"
+  echo "  km -kun                         # k8s upgrade node  (other control plane nodes)"
   echo ""
   echo "  k  -nD                          # node drain"
   echo "  km -pkc -x                      # upgrade kubectl"
@@ -302,6 +310,11 @@ if [ $HELP -eq 1 ]; then
   echo "  systemctl restart kubelet       # restart kubelet"
   echo "  k  -nw                          # verify"
   echo "  k  -nU                          # node uncordon"
+  echo ""
+  echo " ---- k8s: reset"
+  echo ""
+  echo " ---- cni: calico"
+  echo "  km -ncip                        # image pull"
   exit 0
 fi
 
@@ -767,11 +780,11 @@ if [ $IMAGE_PULL -eq 1 ]; then
 fi
 
 #
-# stage: CLUSTER-IMAGE-LIST
+# stage: K8S-IMAGE-LIST
 #
-if [ $CLUSTER_IMAGE_LIST -eq 1 ]; then
+if [ $K8S_IMAGE_LIST -eq 1 ]; then
   (( $s != 0 )) && echo; ((++s))
-  echo "$ID: stage: CLUSTER-IMAGE-LIST"
+  echo "$ID: stage: K8S-IMAGE-LIST"
 
   set -ex
   CONTAINERD_NAMESPACE=k8s.io ctr image ls -q
@@ -779,11 +792,11 @@ if [ $CLUSTER_IMAGE_LIST -eq 1 ]; then
 fi
 
 #
-# stage: CLUSTER-IMAGE-PULL
+# stage: K8S-IMAGE-PULL
 #
-if [ $CLUSTER_IMAGE_PULL -eq 1 ]; then
+if [ $K8S_IMAGE_PULL -eq 1 ]; then
   (( $s != 0 )) && echo; ((++s))
-  echo "$ID: stage: CLUSTER-IMAGE-PULL"
+  echo "$ID: stage: K8S-IMAGE-PULL"
 
   if [ -z "$REGISTRY_HOST" ]; then
     echo "$ID: require: REGISTRY_HOST"
@@ -798,29 +811,70 @@ if [ $CLUSTER_IMAGE_PULL -eq 1 ]; then
 fi
 
 #
-# stage: CLUSTER-UPGRADE
+# stage: K8S-UPGRADE
 #
-if [ "$CLUSTER_UPGRADE" != "" ]; then
+if [ "$K8S_UPGRADE" != "" ]; then
   (( $s != 0 )) && echo; ((++s))
-  echo "$ID: stage: CLUSTER-UPGRADE ($CLUSTER_UPGRADE)"
+  echo "$ID: stage: K8S-UPGRADE ($K8S_UPGRADE)"
 
-  if [ "$CLUSTER_UPGRADE" = "plan" ]; then
+  if [ "$K8S_UPGRADE" = "plan" ]; then
     set -ex
     kubeadm ${DEBUG:+--v=5} upgrade plan v$V
     { set +ex; } 2>/dev/null
   fi
 
-  if [ "$CLUSTER_UPGRADE" = "apply" ]; then
+  if [ "$K8S_UPGRADE" = "apply" ]; then
     set -ex
     kubeadm ${DEBUG:+--v=5} upgrade apply v$V
     { set +ex; } 2>/dev/null
   fi
 
-  if [ "$CLUSTER_UPGRADE" = "node" ]; then
+  if [ "$K8S_UPGRADE" = "node" ]; then
     set -ex
     kubeadm ${DEBUG:+--v=5} upgrade node v$V
     { set +ex; } 2>/dev/null
   fi
+fi
+
+#
+# stage: CNI-CALICO-IMAGE-PULL
+#
+if [ $CNI_CALICO_IMAGE_PULL -eq 1 ]; then
+  (( $s != 0 )) && echo; ((++s))
+  echo "$ID: stage: CNI_CALICO_IMAGE_PULL (EVAL=$EVAL)"
+
+  if [ ! $(type -t skopeo) ]; then
+    echo "$ID: command not found: skopeo"
+    exit 1
+  fi
+
+  if [ -z "$REGISTRY_HOST" ]; then
+    echo "$ID: require: REGISTRY_HOST"
+    exit 1
+  fi
+
+  [[ $EVAL -ne 1 ]] && EVAL_CMD="echo" || EVAL_CMD=""
+
+  for RH in $REGISTRY_HOST; do
+    echo docker.io/calico/cni:v$V docker.io/calico/node:v$V docker.io/calico/kube-controllers:v$V | \
+    sed 's/ /\n/g' | \
+    while read i; do
+      IR=$(echo $i | sed 's#^[^/]*/##' | awk -F: '{print $1}')
+      IV=$(echo $i | sed 's#^[^/]*/##' | awk -F: '{print $2}')
+
+      [[ "$IR" = "coredns/coredns" ]] && IR="$IR coredns"
+
+      for j in $IR; do
+        set -ex
+        $EVAL_CMD \
+        skopeo ${DEBUG:+--debug} copy \
+          --src-tls-verify=0 \
+          --dest-tls-verify=0 \
+          docker://$i docker://${RH#*://}/$j:$IV
+        { set +ex; } 2>/dev/null
+      done
+    done
+  done
 fi
 
 #
