@@ -9,7 +9,7 @@ Install:
 
     ./kman.sh --install
     -- or --
-    cp -fv kman.sh /usr/local/bin/kman.sh
+    cp -fv kman.sh /usr/local/bin
 
     mkdir -pv /usr/local/etc/kman.d
     mkdir -pv /usr/local/bin/alias-kman
