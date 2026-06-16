@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION_BIN="260603"
+VERSION_BIN="260616"
 
 SN="${0##*/}"
 ID="[$SN]"
@@ -593,7 +593,7 @@ if [ $PACKAGE_INSTALL_KUBE -eq 1 ]; then
 
   if [ $PACKAGE_INSTALL_KUBEADM -eq 1 ]; then
     set -ex
-    apt-get -y --allow-change-held-packages $EVAL_OPT install kubeadm=$V-1.1
+    apt-get -y --allow-change-held-packages $EVAL_OPT install kubeadm=$V-*
     { set +ex; } 2>/dev/null
     if [ $EVAL -eq 1 ]; then
       set -ex
@@ -605,7 +605,7 @@ if [ $PACKAGE_INSTALL_KUBE -eq 1 ]; then
 
   if [ $PACKAGE_INSTALL_KUBECTL -eq 1 ]; then
     set -ex
-    apt-get -y --allow-change-held-packages $EVAL_OPT install kubectl=$V-1.1
+    apt-get -y --allow-change-held-packages $EVAL_OPT install kubectl=$V-*
     { set +ex; } 2>/dev/null
     if [ $EVAL -eq 1 ]; then
       set -ex
@@ -617,7 +617,7 @@ if [ $PACKAGE_INSTALL_KUBE -eq 1 ]; then
 
   if [ $PACKAGE_INSTALL_KUBELET -eq 1 ]; then
     set -ex
-    apt-get -y --allow-change-held-packages $EVAL_OPT install kubelet=$V-1.1
+    apt-get -y --allow-change-held-packages $EVAL_OPT install kubelet=$V-*
     { set +ex; } 2>/dev/null
     if [ $EVAL -eq 1 ]; then
       set -ex
