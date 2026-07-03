@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION_BIN="260616"
+VERSION_BIN="260703"
 
 SN="${0##*/}"
 ID="[$SN]"
@@ -729,7 +729,7 @@ if [ $IMAGE_LIST_REG -eq 1 ]; then
         fi
       done
     else
-      echo | xargs -L1 -t curl --netrc-file $REGISTRY_AUTH -s -k -L $RH/v2/_catalog | jq
+      echo | xargs -L1 -t curl --netrc-file $REGISTRY_AUTH -s -k -L "$RH/v2/_catalog?n=500" | jq
     fi
   done
 fi
