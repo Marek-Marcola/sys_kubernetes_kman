@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION_BIN="260703"
+VERSION_BIN="260707"
 
 SN="${0##*/}"
 ID="[$SN]"
@@ -61,7 +61,7 @@ s=0
 
 while [ $# -gt 0 ]; do
   case $1 in
-    --vers*|-vers*)
+    --ver*|-ver*)
       VERSION=1
       shift
       ;;
@@ -231,15 +231,15 @@ fi
 # stage: HELP
 #
 if [ $HELP -eq 1 ]; then
-  echo "$SN -version                  # version"
-  echo "$SN -install                  # install with rsync"
+  echo "$SN -ver                      # version"
+  echo "$SN -inst [-x]                # install with rsync"
   echo "$SN -anpb [host_pattern] [-x] # install with ansible"
   echo "$SN -stage                    # stage list"
   echo ""
+  echo "$SN -L [-x]                   # link show,run"
+  echo ""
   echo "$SN -B                        # backup"
   echo "$SN -Bl                       # backup list"
-  echo ""
-  echo "$SN -L [-x]                   # link show,run"
   echo ""
   echo "$SN -V                        # version kubeadm"
   echo "$SN -Vs                       # version stable"
@@ -366,14 +366,20 @@ if [ $INSTALL_RSYNC -eq 1 ]; then
   (( $s != 0 )) && echo; ((++s))
   echo "$ID: stage: INSTALL-RSYNC"
 
+  [[ $EVAL -ne 1 ]] && EVAL_OPT="-n" || EVAL_OPT=""
+
   if [ -f kman.sh ]; then
     for d in /usr/local/bin /pub/pkb/kb/data/999224-kman/999224-000030_kman_script /pub/pkb/pb/playbooks/999224-kman/files; do
       if [ -d $d ]; then
         set -ex
-        rsync -ai kman.sh $d
+        rsync -ai $EVAL_OPT kman.sh $d
         { set +ex; } 2>/dev/null
       fi
     done
+  elif [ -f /pub/pkb/pb/playbooks/999224-kman/files/kman.sh ]; then
+    set -ex
+    rsync -ai $EVAL_OPT /pub/pkb/pb/playbooks/999224-kman/files/kman.sh /usr/local/bin/
+    { set +ex; } 2>/dev/null
   fi
 
   exit 0
