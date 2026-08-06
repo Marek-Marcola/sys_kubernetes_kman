@@ -7,7 +7,9 @@ Install
 -------
 Install:
 
-    ./kman.sh --install
+    ./kman.sh --inst -x
+    -- or --
+    ./kman.sh --anpb -x
     -- or --
     cp -fv kman.sh /usr/local/bin
 
@@ -27,7 +29,7 @@ Postinstall:
 
 Verify:
 
-    kman.sh --version
+    kman.sh --ver
 
 Help:
 
