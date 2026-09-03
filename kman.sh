@@ -1,11 +1,12 @@
 #!/bin/bash
 
-VERSION_BIN="260707"
+VERSION_BIN="260904"
 
 SN="${0##*/}"
 ID="[$SN]"
 
 INSTALL_RSYNC=0
+INSTALL_RSYNC_HL="$(hostname -s)"
 INSTALL_ANPB=0
 INSTALL_ANPB_HP="kman"
 INSTALL_SKOPEO=0
@@ -67,6 +68,7 @@ while [ $# -gt 0 ]; do
       ;;
     --inst*|-inst*)
       INSTALL_RSYNC=1
+      [[ -n "$2" && ${2:0:1} != "-" ]] && INSTALL_RSYNC_HL="$2" && shift
       shift
       ;;
     --anpb|-anpb)
@@ -232,7 +234,7 @@ fi
 #
 if [ $HELP -eq 1 ]; then
   echo "$SN -ver                      # version"
-  echo "$SN -inst [-x]                # install with rsync"
+  echo "$SN -inst [host_list]    [-x] # install with rsync"
   echo "$SN -anpb [host_pattern] [-x] # install with ansible"
   echo "$SN -stage                    # stage list"
   echo ""
@@ -369,7 +371,7 @@ if [ $INSTALL_RSYNC -eq 1 ]; then
   [[ $EVAL -ne 1 ]] && EVAL_OPT="-n" || EVAL_OPT=""
 
   if [ -f kman.sh ]; then
-    for d in /usr/local/bin /pub/pkb/kb/data/999224-kman/999224-000030_kman_script /pub/pkb/pb/playbooks/999224-kman/files; do
+    for d in /usr/local/bin /pub/pkb/pb/playbooks/999224-kman/files; do
       if [ -d $d ]; then
         set -ex
         rsync -ai $EVAL_OPT kman.sh $d
@@ -377,9 +379,27 @@ if [ $INSTALL_RSYNC -eq 1 ]; then
       fi
     done
   elif [ -f /pub/pkb/pb/playbooks/999224-kman/files/kman.sh ]; then
-    set -ex
-    rsync -ai $EVAL_OPT /pub/pkb/pb/playbooks/999224-kman/files/kman.sh /usr/local/bin/
-    { set +ex; } 2>/dev/null
+    for h in $(echo $INSTALL_RSYNC_HL|sed 's/,/ /g'); do
+      set -ex
+      rsync -ai $EVAL_OPT /pub/pkb/pb/playbooks/999224-kman/files/kman.sh $h:/usr/local/bin
+      { set +ex; } 2>/dev/null
+    done
+  fi
+
+  if [ -f zlocal-kman.sh ]; then
+    for d in /etc/profile.d/ /pub/pkb/pb/playbooks/999224-kman/files/; do
+      if [ -d $d ]; then
+        set -ex
+        rsync -ai $EVAL_OPT zlocal-kman.sh $d
+        { set +ex; } 2>/dev/null
+      fi
+    done
+  elif [ -f /pub/pkb/pb/playbooks/999224-kman/files/zlocal-kman.sh ]; then
+    for h in $(echo $INSTALL_RSYNC_HL|sed 's/,/ /g'); do
+      set -ex
+      rsync -ai $EVAL_OPT /pub/pkb/pb/playbooks/999224-kman/files/zlocal-kman.sh $h:/etc/profile.d/zlocal-kman.sh
+      { set +ex; } 2>/dev/null
+    done
   fi
 
   exit 0
