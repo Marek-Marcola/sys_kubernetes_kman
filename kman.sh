@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION_BIN="260904"
+VERSION_BIN="260911"
 
 SN="${0##*/}"
 ID="[$SN]"
@@ -413,7 +413,7 @@ if [ $INSTALL_ANPB -eq 1 ]; then
   echo "$ID: stage: INSTALL-ANPB (EVAL=$EVAL)"
 
   if [ ! $(type -t anpb) ]; then
-    echo "$ID: command not found: anpb"
+    echo "$ID: E: command not found: anpb"
     exit 1
   fi
 
@@ -462,11 +462,11 @@ if [ $LINK -ne 0 ]; then
   echo "$ID: stage: LINK"
 
   if [ ! -d $EDIR ]; then
-    echo $ID: directory not found: $EDIR
+    echo "$ID: E: directory not found: $EDIR"
     exit 1
   fi
   if [ ! -d $LDIR ]; then
-    echo $ID: directory not found: $LDIR
+    echo "$ID: E: directory not found: $LDIR"
     exit 1
   fi
 
@@ -521,7 +521,7 @@ if [ $PACKAGE_CONFIG -eq 1 ]; then
   echo "$ID: stage: PACKAGE-CONFIG"
 
   if [ "$V" = ""  ]; then
-    echo "$ID: require: ver"
+    echo "$ID: E: require: ver"
     exit 1
   fi
 
@@ -548,7 +548,7 @@ if [ $PACKAGE_LIST -eq 1 ]; then
   echo "$ID: stage: PACKAGE-LIST"
 
   if [ "$V" = ""  ]; then
-    echo "$ID: require: ver"
+    echo "$ID: E: require: ver"
     exit 1
   fi
 
@@ -600,7 +600,7 @@ if [ $PACKAGE_INSTALL_KUBE -eq 1 ]; then
   echo "$ID: stage: PACKAGE-INSTALL-KUBE (EVAL=$EVAL)"
 
   if [ "$V" = ""  ]; then
-    echo "$ID: require: ver"
+    echo "$ID: E: require: ver"
     exit 1
   fi
 
@@ -743,7 +743,7 @@ if [ $IMAGE_LIST_REG -eq 1 ]; then
   echo "$ID: stage: IMAGE-LIST-REG (re: $IMAGE_LIST_REG_RE)"
 
   if [ "$REGISTRY_HOST" = ""  ]; then
-    echo "$ID: require: REGISTRY_HOST"
+    echo "$ID: E: require: REGISTRY_HOST"
     exit 1
   fi
 
@@ -768,7 +768,7 @@ if [ $IMAGE_SAVE -eq 1 ]; then
   echo "$ID: stage: IMAGE-SAVE (EVAL=$EVAL)"
 
   if [ ! $(type -t skopeo) ]; then
-    echo "$ID: command not found: skopeo"
+    echo "$ID: E: command not found: skopeo"
     exit 1
   fi
 
@@ -787,7 +787,7 @@ if [ $IMAGE_SAVE -eq 1 ]; then
         docker://$i docker-archive:$IR-$IV.tar
       { set +ex; } 2>/dev/null
     else
-      echo file already exists: $IR-$IV.tar
+      echo "$ID: I: file already exists: $IR-$IV.tar"
     fi
   done
 fi
@@ -800,12 +800,12 @@ if [ $IMAGE_PULL -eq 1 ]; then
   echo "$ID: stage: IMAGE-PULL (EVAL=$EVAL)"
 
   if [ ! $(type -t skopeo) ]; then
-    echo "$ID: command not found: skopeo"
+    echo "$ID: E: command not found: skopeo"
     exit 1
   fi
 
   if [ -z "$REGISTRY_HOST" ]; then
-    echo "$ID: require: REGISTRY_HOST"
+    echo "$ID: E: require: REGISTRY_HOST"
     exit 1
   fi
 
@@ -852,7 +852,7 @@ if [ $K8S_IMAGE_PULL -eq 1 ]; then
   echo "$ID: stage: K8S-IMAGE-PULL"
 
   if [ -z "$REGISTRY_HOST" ]; then
-    echo "$ID: require: REGISTRY_HOST"
+    echo "$ID: E: require: REGISTRY_HOST"
     exit 1
   fi
 
@@ -897,12 +897,12 @@ if [ $CNI_CALICO_IMAGE_PULL -eq 1 ]; then
   echo "$ID: stage: CNI_CALICO_IMAGE_PULL (EVAL=$EVAL)"
 
   if [ ! $(type -t skopeo) ]; then
-    echo "$ID: command not found: skopeo"
+    echo "$ID: E: command not found: skopeo"
     exit 1
   fi
 
   if [ -z "$REGISTRY_HOST" -o -z "$CNIV" ]; then
-    echo "$ID: require: REGISTRY_HOST,CNIV"
+    echo "$ID: E: require: REGISTRY_HOST,CNIV"
     exit 1
   fi
 
@@ -965,7 +965,7 @@ if [ $ENV_LIST -eq 1 ]; then
   echo "$ID: stage: ENV-LIST"
 
   if [ ! -d $EDIR ]; then
-    echo directory not found: $EDIR
+    echo "$ID: E: directory not found: $EDIR"
   else
     set -ex
     ls -log $EDIR/
@@ -982,7 +982,7 @@ if [ $ENV_SHOW -eq 1 ]; then
 
   if [ "$A" != "kman" -a  "$ENV_SHOW_RE" = "" ]; then
     if [ ! -f $EDIR/$A ]; then
-      echo file not found: $EDIR/$A
+      echo "$ID: E: file not found: $EDIR/$A"
     else
       (
       set -ex
@@ -1010,7 +1010,7 @@ if [ $ENV_EDIT -eq 1 ]; then
   echo "$ID: stage: ENV-EDIT"
 
   if [ ! -d $EDIR ]; then
-    echo directory not found: $EDIR
+    echo "$ID: E: directory not found: $EDIR"
   else
     set -ex
     vi $EDIR/$A
