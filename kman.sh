@@ -1,9 +1,11 @@
 #!/bin/bash
+#
+# Kubernetes cluster lifecycle management.
 
-VERSION_BIN="261015"
+VERSION_BIN="261107"
 
 SN="${0##*/}"
-ID="[$SN]"
+ID="[${SN%.sh}]"
 
 ARCH=0
 ARCH_DIR="/tmp"
